@@ -5,7 +5,7 @@ export async function protect(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Authentication token is required' });
+    return res.error('Authentication token is required', 401);
   }
 
   try {
@@ -14,19 +14,19 @@ export async function protect(req, res, next) {
     const user = await User.findById(decoded.id);
 
     if (!user) {
-      return res.status(401).json({ message: 'User no longer exists' });
+      return res.error('User no longer exists', 401);
     }
 
     req.user = user;
     return next();
   } catch (_error) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+    return res.error('Invalid or expired token', 401);
   }
 }
 
 export function requireAdmin(req, res, next) {
   if (req.user?.role !== 'admin') {
-    return res.status(403).json({ message: 'Admin access required' });
+    return res.error('Admin access required', 403);
   }
 
   return next();
