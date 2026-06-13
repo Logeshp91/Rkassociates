@@ -18,11 +18,11 @@ const userSchema = new mongoose.Schema(
       minlength: 8,
       select: false
     },
-    passwordResetToken: {
+    passwordResetOtp: {
       type: String,
       select: false
     },
-    passwordResetExpires: {
+    passwordResetOtpExpires: {
       type: Date,
       select: false
     },
@@ -55,8 +55,8 @@ userSchema.methods.comparePassword = function comparePassword(candidatePassword)
 userSchema.set('toJSON', {
   transform: (_doc, ret) => {
     delete ret.password;
-    delete ret.passwordResetToken;
-    delete ret.passwordResetExpires;
+    delete ret.passwordResetOtp;
+    delete ret.passwordResetOtpExpires;
     return ret;
   }
 });

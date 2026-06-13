@@ -1,7 +1,10 @@
+import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import User from '../models/User.js';
 import { createToken } from '../utils/createToken.js';
 import { sendEmail } from '../utils/sendEmail.js';
+
+const OTP_EXPIRY_MINUTES = 10;
 
 function publicUser(user) {
   return {
@@ -10,6 +13,10 @@ function publicUser(user) {
     role: user.role,
     createdAt: user.createdAt
   };
+}
+
+function hashOtp(otp) {
+  return crypto.createHash('sha256').update(otp).digest('hex');
 }
 
 export async function login(req, res, next) {
@@ -41,22 +48,41 @@ export async function getMe(req, res) {
 export async function forgotPassword(req, res, next) {
   try {
     const username = req.body.username.toLowerCase();
-    const user = await User.findOne({ username }).select('+passwordResetToken +passwordResetExpires');
+    const user = await User.findOne({ username }).select('+passwordResetOtp +passwordResetOtpExpires');
 
-    if (user) {
-      const resetToken = crypto.randomBytes(32).toString('hex');
-      user.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-      user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
-      await user.save({ validateBeforeSave: false });
-
-      await sendEmail({
-        to: user.email,
-        subject: 'Password reset request',
-        text: `Use this token to reset your password: ${resetToken}`
-      });
+    if (!user) {
+      return res.error('User not found', 404);
     }
 
-    return res.success('If the account exists, password reset instructions have been sent');
+    const adminEmail = process.env.ADMIN_EMAIL;
+
+    if (!adminEmail) {
+      return res.error('Admin email is not configured', 500);
+    }
+
+    const otp = String(crypto.randomInt(100000, 1000000));
+    user.passwordResetOtp = hashOtp(otp);
+    user.passwordResetOtpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+    await user.save({ validateBeforeSave: false });
+
+    const sent = await sendEmail({
+      to: adminEmail,
+      subject: 'Password reset OTP',
+      text: [
+        'A password reset OTP was requested.',
+        '',
+        `Username: ${user.username}`,
+        `OTP: ${otp}`,
+        '',
+        `This OTP expires in ${OTP_EXPIRY_MINUTES} minutes and can be used only once.`
+      ].join('\n')
+    });
+
+    if (!sent) {
+      return res.error('Email service is not configured', 500);
+    }
+
+    return res.success('OTP sent to the configured admin email');
   } catch (error) {
     return next(error);
   }
@@ -64,20 +90,46 @@ export async function forgotPassword(req, res, next) {
 
 export async function resetPassword(req, res, next) {
   try {
-    const resetToken = crypto.createHash('sha256').update(req.body.token).digest('hex');
-    const user = await User.findOne({
-      passwordResetToken: resetToken,
-      passwordResetExpires: { $gt: Date.now() }
-    }).select('+password +passwordResetToken +passwordResetExpires');
+    const username = req.body.username.toLowerCase();
+    const user = await User.findOne({ username }).select('+passwordResetOtp +passwordResetOtpExpires');
 
     if (!user) {
-      return res.error('Invalid or expired password reset token', 400);
+      return res.error('User not found', 404);
     }
 
-    user.password = req.body.password;
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    await user.save();
+    if (!user.passwordResetOtp || !user.passwordResetOtpExpires) {
+      return res.error('No active password reset OTP found', 400);
+    }
+
+    if (user.passwordResetOtpExpires <= new Date()) {
+      user.passwordResetOtp = undefined;
+      user.passwordResetOtpExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      return res.error('Password reset OTP has expired', 400);
+    }
+
+    const otpHash = hashOtp(req.body.otp);
+
+    if (user.passwordResetOtp !== otpHash) {
+      return res.error('Invalid password reset OTP', 400);
+    }
+
+    const hashedPassword = await bcrypt.hash(req.body.password, 12);
+    const updateResult = await User.updateOne(
+      {
+        _id: user._id,
+        passwordResetOtp: otpHash,
+        passwordResetOtpExpires: { $gt: new Date() }
+      },
+      {
+        $set: { password: hashedPassword },
+        $unset: { passwordResetOtp: '', passwordResetOtpExpires: '' }
+      }
+    );
+
+    if (updateResult.modifiedCount !== 1) {
+      return res.error('Invalid or expired password reset OTP', 400);
+    }
 
     return res.success('Password reset successful');
   } catch (error) {

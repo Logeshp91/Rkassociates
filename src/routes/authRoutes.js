@@ -40,7 +40,16 @@ router.post(
 router.post(
   '/reset-password',
   [
-    body('token').trim().notEmpty().withMessage('Reset token is required'),
+    body('username')
+      .trim()
+      .isLength({ min: 3, max: 30 })
+      .withMessage('Username must be 3 to 30 characters')
+      .matches(/^[a-zA-Z0-9_.-]+$/)
+      .withMessage('Username can only contain letters, numbers, underscores, dots, and dashes'),
+    body('otp')
+      .trim()
+      .matches(/^\d{6}$/)
+      .withMessage('OTP must be exactly 6 digits'),
     body('password')
       .isStrongPassword({
         minLength: 8,
@@ -49,7 +58,10 @@ router.post(
         minNumbers: 1,
         minSymbols: 0
       })
-      .withMessage('Password must be 8+ characters and include uppercase, lowercase, and a number')
+      .withMessage('Password must be 8+ characters and include uppercase, lowercase, and a number'),
+    body('confirmPassword')
+      .custom((value, { req }) => value === req.body.password)
+      .withMessage('Confirm password must match new password')
   ],
   validateRequest,
   resetPassword
