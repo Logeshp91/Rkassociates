@@ -1,4 +1,5 @@
 import cors from 'cors';
+import dotenv from 'dotenv';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -7,12 +8,21 @@ import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import { apiResponse, sendError, sendSuccess } from './utils/apiResponse.js';
 
+dotenv.config();
+
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
+const requiredAllowedOrigins = [
+  'http://localhost:5173',
+  'https://rkassociates-frontend-hmlhiai9c-logeshp91s-projects.vercel.app'
+];
+
+const envAllowedOrigins = (process.env.CLIENT_ORIGIN || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+const allowedOrigins = [...new Set([...requiredAllowedOrigins, ...envAllowedOrigins])];
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -26,19 +36,21 @@ function isAllowedOrigin(origin) {
   return /^http:\/\/(localhost|127\.0\.0\.1|\d{1,3}(?:\.\d{1,3}){3}):5173$/.test(origin);
 }
 
-app.use(helmet());
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (isAllowedOrigin(origin)) {
-        return callback(null, true);
-      }
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
 
-      return callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true
-  })
-);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  optionsSuccessStatus: 204
+};
+
+app.use(helmet());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10kb' }));
 app.use(apiResponse);
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
