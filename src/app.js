@@ -14,6 +14,7 @@ const app = express();
 
 const requiredAllowedOrigins = [
   'http://localhost:5173',
+  'https://app.rk-lawassociates.co.in',
   'https://rkassociates-frontend.vercel.app',
   'https://rkassociates-frontend-hmlhiai9c-logeshp91s-projects.vercel.app'
 ];

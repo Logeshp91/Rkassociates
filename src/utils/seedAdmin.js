@@ -15,6 +15,7 @@ export async function seedAdmin() {
       existingAdmin.role = 'admin';
       await existingAdmin.save();
     }
+
     return;
   }
 

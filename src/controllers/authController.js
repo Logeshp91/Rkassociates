@@ -6,6 +6,10 @@ import { sendEmail } from '../utils/sendEmail.js';
 
 const OTP_EXPIRY_MINUTES = 10;
 
+function readEnvValue(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function publicUser(user) {
   return {
     _id: user._id,
@@ -17,6 +21,13 @@ function publicUser(user) {
 
 function hashOtp(otp) {
   return crypto.createHash('sha256').update(otp).digest('hex');
+}
+
+function getAdminEmail() {
+  return (
+    readEnvValue(process.env.ADMIN_EMAIL) ||
+    readEnvValue(process.env.SMTP_USER)
+  );
 }
 
 export async function login(req, res, next) {
@@ -54,7 +65,7 @@ export async function forgotPassword(req, res, next) {
       return res.error('User not found', 404);
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminEmail = getAdminEmail();
 
     if (!adminEmail) {
       return res.error('Admin email is not configured', 500);
@@ -65,21 +76,30 @@ export async function forgotPassword(req, res, next) {
     user.passwordResetOtpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
     await user.save({ validateBeforeSave: false });
 
-    const sent = await sendEmail({
-      to: adminEmail,
-      subject: 'Password reset OTP',
-      text: [
-        'A password reset OTP was requested.',
-        '',
-        `Username: ${user.username}`,
-        `OTP: ${otp}`,
-        '',
-        `This OTP expires in ${OTP_EXPIRY_MINUTES} minutes and can be used only once.`
-      ].join('\n')
-    });
+    try {
+      await sendEmail({
+        to: adminEmail,
+        subject: 'Password reset OTP',
+        text: [
+          'A password reset OTP was requested.',
+          '',
+          `Username: ${user.username}`,
+          `OTP: ${otp}`,
+          '',
+          `This OTP expires in ${OTP_EXPIRY_MINUTES} minutes and can be used only once.`
+        ].join('\n')
+      });
+    } catch (error) {
+      console.error('forgotPassword failed:', error);
+      user.passwordResetOtp = undefined;
+      user.passwordResetOtpExpires = undefined;
+      await user.save({ validateBeforeSave: false });
 
-    if (!sent) {
-      return res.error('Email service is not configured', 500);
+      if (error.message === 'SMTP is not configured') {
+        return res.error('Email service is not configured', 500);
+      }
+
+      return res.error('Failed to send password reset email', 500);
     }
 
     return res.success('OTP sent to the configured admin email');
