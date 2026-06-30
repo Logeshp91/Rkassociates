@@ -28,15 +28,20 @@ export async function sendEmail({ to, subject, text }) {
     throw new Error('SMTP_PORT must be a valid port number');
   }
 
-  const transporter = nodemailer.createTransport({
-    host: readEnvValue(process.env.SMTP_HOST),
-    port,
-    secure: readEnvValue(process.env.SMTP_SECURE) === 'true',
-    auth: {
-      user: readEnvValue(process.env.SMTP_USER),
-      pass: readEnvValue(process.env.SMTP_PASS)
-    }
-  });
+ const secure =
+  ['true', 'ssl'].includes(
+    readEnvValue(process.env.SMTP_SECURE).toLowerCase()
+  );
+
+const transporter = nodemailer.createTransport({
+  host: readEnvValue(process.env.SMTP_HOST),
+  port,
+  secure,
+  auth: {
+    user: readEnvValue(process.env.SMTP_USER),
+    pass: readEnvValue(process.env.SMTP_PASS)
+  }
+});
 
   await transporter.sendMail({
     from: readEnvValue(process.env.SMTP_FROM) || readEnvValue(process.env.SMTP_USER),
