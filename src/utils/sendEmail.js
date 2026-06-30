@@ -15,7 +15,16 @@ function hasSmtpConfig() {
 
 export async function sendEmail({ to, subject, text }) {
   if (!to) {
-    throw new Error('Recipient email is required');
+    throw new Error('Recipient email is required');  console.log("Recipient:", to);
+
+  console.log({
+    SMTP_HOST: process.env.SMTP_HOST,
+    SMTP_PORT: process.env.SMTP_PORT,
+    SMTP_SECURE: process.env.SMTP_SECURE,
+    SMTP_USER: process.env.SMTP_USER,
+    SMTP_FROM: process.env.SMTP_FROM,
+    SMTP_PASS_EXISTS: !!process.env.SMTP_PASS
+  });
   }
 
   if (!hasSmtpConfig()) {
