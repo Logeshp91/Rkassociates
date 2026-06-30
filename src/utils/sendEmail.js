@@ -33,15 +33,6 @@ export async function sendEmail({ to, subject, text }) {
     readEnvValue(process.env.SMTP_SECURE).toLowerCase()
   );
 
-// const transporter = nodemailer.createTransport({
-//   host: readEnvValue(process.env.SMTP_HOST),
-//   port,
-//   secure,
-//   auth: {
-//     user: readEnvValue(process.env.SMTP_USER),
-//     pass: readEnvValue(process.env.SMTP_PASS)
-//   }
-// });
 const transporter = nodemailer.createTransport({
   host: readEnvValue(process.env.SMTP_HOST),
   port,
@@ -49,12 +40,7 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: readEnvValue(process.env.SMTP_USER),
     pass: readEnvValue(process.env.SMTP_PASS)
-  },
-  logger: true,
-  debug: true,
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000
+  }
 });
 
   await transporter.sendMail({

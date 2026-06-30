@@ -99,7 +99,9 @@ export async function forgotPassword(req, res, next) {
         return res.error('Email service is not configured', 500);
       }
 
-      return res.error('Failed to send password reset email', error);
+      console.error('forgotPassword failed:', error);
+
+return res.error('Failed to send password reset email', 500);
     }
 
     return res.success('OTP sent to the configured admin email');
